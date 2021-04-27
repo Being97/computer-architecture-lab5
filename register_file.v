@@ -15,4 +15,14 @@ module register_file (read_out1, read_out2, read1, read2, dest, write_data, reg_
 	
 	//TODO: implement register file
 
+	reg [`WORD_SIZE-1:0] GPR [`NUM_REGS-1:0];
+
+	initial begin
+		GPR[0] = 0;
+		GPR[1] = 0;
+		GPR[2] = 0;
+		GPR[3] = 0;
+	end
+
+
 endmodule
