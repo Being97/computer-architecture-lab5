@@ -35,9 +35,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	assign read_m1 = instr_read;
 	assign read_m2 = mem_read;
 	assign write_m2 = mem_write;
-	//TODO: implement pipelined CPU
 
-	//alu, alu_control_unit
+
 	alu_control_unit alu_control_unit(
 		.funct(ex_func),
 		.opcode(ex_opcode),
@@ -77,6 +76,83 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.reset_n(reset_n),
 	);
 
+	always @(*) begin
+		if ((rs == ex_write_reg) && use_rs1(opcode, func) && ex_reg_write) begin
+			is_stall = 1;
+		end
+		else if ((rs == mem_write_reg) && use_rs1(opcode, func) && mem_reg_write) begin
+			is_stall = 1;
+		end
+		else if ((rs == wb_write_reg) && use_rs1(opcode, func) && wb_reg_write) begin
+			is_stall = 1;
+		end
+		else if ((rt == ex_write_reg) && use_rs2(opcode, func) && ex_reg_write) begin
+			is_stall = 1;
+		end
+		else if ((rt == mem_write_reg) && use_rs2(opcode, func) && mem_reg_write) begin
+			is_stall = 1;
+		end
+		else if ((rt == wb_write_reg) && use_rs2(opcode, func) && wb_reg_write) begin
+			is_stall = 1;
+		end
+		else begin
+			is_stall = 0;
+		end
+	end
+	
+	function use_rs1;
+	input opcode;
+	input func;
+	begin
+		if (opcode === `LHI_OP || opcode === `JMP_OP || opcode === `JAL_OP) begin
+			use_rs1 = 0;
+		end
+		else if (func === 27 || func == 29 || func === 30 || func === 31) begin
+			use_rs1 = 0;		
+		end
+		else begin
+			use_rs1 = 1;
+		end
+	end
+
+	function use_rs2;
+	input opcode;
+	input func;
+	begin
+		if (opcode === `BLZ_OP || opcode === `BGZ_OP || opcode === `JAL_OP) begin
+			use_rs2 = 0;
+		end
+		else if (func === 4 || func == 5 || func === 6 || func === 7) begin
+			use_rs2 = 0;
+		end
+		else if (func > 24) begin
+			use_rs2 = 0;
+		end
+		else begin
+			use_rs2 = 1;
+		end
+	end
+
+	reg [`WORD_SIZE-1:0] id_pc;
+	reg [`WORD_SIZE-1:0] id_instr;
+	reg [`WORD_SIZE-1:0] if_pc;
+	reg [`WORD_SIZE-1:0] if_instr;
+	reg [`WORD_SIZE-1:0] id_pc;	
+	reg [`WORD_SIZE-1:0] id_pc;	
+	reg [`WORD_SIZE-1:0] id_pc;	
+	reg [`WORD_SIZE-1:0] id_pc;	
+	reg [`WORD_SIZE-1:0] id_pc;	
+	reg [`WORD_SIZE-1:0] id_pc;	
+	reg [`WORD_SIZE-1:0] id_pc;
+
+	// instruction parsing
+	wire [3:0] opcode;
+	wire [1:0] rs, rt, rd;
+	wire [5:0] func_code;
+	wire [7:0] imm;
+	wire [7:0] imm_extended;	
+	wire [11:0] target_addr;
+
 	// IF/ID
 	always @(posedge clk) begin
 		// passing data
@@ -102,24 +178,30 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	end
 	// ID/EX
 	always @(posedge clk) begin
-		// using control signals
-		ex_alu_src <= new_alu_src;
-		ex_alu_op <= new_alu_op;
-		// passing control signals
-		ex_reg_write <= new_reg_write;
-		ex_is_branch <= new_is_branch;
-		ex_mem_read <= new_mem_read;
-		ex_mem_write <= new_mem_write;
-		// using data
-		ex_read_data_1 <= read_out1;
-		ex_read_data_2 <= read_out2
-		ex_imm_extended <= imm_extended;
-		ex_func <= func;
-		ex_opcode <= opcode;
-		// passing data
-		ex_write_reg <= rd;
-		// using & passing data
-		ex_pc <= id_pc;
+		if (!is_stall) begin
+			// using control signals
+			ex_alu_src <= new_alu_src;
+			ex_alu_op <= new_alu_op;
+			// passing control signals
+			ex_rd <= rd;
+			ex_reg_write <= new_reg_write;
+			ex_is_branch <= new_is_branch;
+			ex_mem_read <= new_mem_read;
+			ex_mem_write <= new_mem_write;
+			// using data
+			ex_read_data_1 <= read_out1;
+			ex_read_data_2 <= read_out2
+			ex_imm_extended <= imm_extended;
+			ex_func <= func;
+			ex_opcode <= opcode;
+			// passing data
+			ex_write_reg <= rd;
+			// using & passing data
+			ex_pc <= id_pc;			
+		end
+		else begin
+			ex_reg_write <= 0;
+		end
 	end
 	// EX
 	always @(*) begin

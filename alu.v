@@ -20,8 +20,8 @@ module alu (A, B, func_code, branch_type, alu_out, overflow_flag, bcond);
 
   initial begin
   	alu_out = 0;
-	overflow_flag = 0;
-	bcond = 0;
+		overflow_flag = 0;
+		bcond = 0;
   end
 
   always @(*) begin
