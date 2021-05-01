@@ -14,5 +14,8 @@ module branch_predictor(clk, reset_n, PC, is_flush, is_BJ_type, actual_next_PC, 
 
 
 	//TODO: implement branch predictor
+	always@(posedge clk) begin
+		next_PC <= PC + 1;
+	end
 
 endmodule

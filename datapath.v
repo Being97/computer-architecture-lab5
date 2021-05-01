@@ -11,9 +11,9 @@ module datapath(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, addre
 	input reset_n;
 
 	output read_m1;
-	output [`WORD_SIZE-1:0] address1;
 	output read_m2;
 	output write_m2;
+	output [`WORD_SIZE-1:0] address1;
 	output [`WORD_SIZE-1:0] address2;
 
 	input [`WORD_SIZE-1:0] data1;
@@ -24,6 +24,12 @@ module datapath(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, addre
 	output is_halted;
 
 	//TODO: implement datapath of pipelined CPU
+	initial begin
+		
+	end
 
+	always @() begin
+		
+	end	
 endmodule
 

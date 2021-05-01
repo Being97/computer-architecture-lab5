@@ -9,10 +9,10 @@ module control_unit (opcode, func_code, clk, reset_n, pc_write_cond, pc_write, i
 	
 
 	output reg pc_write_cond, pc_write, i_or_d, mem_read, mem_to_reg, mem_write, ir_write, pc_src;
-  	//additional control signals. pc_to_reg: to support JAL, JRL. halt: to support HLT. wwd: to support WWD. new_inst: new instruction start
-  	output reg pc_to_reg, halt, wwd, new_inst;
-  	output reg [1:0] reg_write, alu_src_A, alu_src_B;
-  	output reg alu_op;
+	//additional control signals. pc_to_reg: to support JAL, JRL. halt: to support HLT. wwd: to support WWD. new_inst: new instruction start
+	output reg pc_to_reg, halt, wwd, new_inst;
+	output reg [1:0] reg_write, alu_src_A, alu_src_B;
+	output reg alu_op;
 
 	//TODO : implement control unit
 
