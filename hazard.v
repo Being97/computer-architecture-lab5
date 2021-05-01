@@ -10,4 +10,6 @@ module hazard_detect(IFID_IR, IDEX_rd, IDEX_M_mem_read, is_stall);
 
 	//TODO: implement hazard detection unit
 
+	
+
 endmodule

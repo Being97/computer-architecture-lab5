@@ -10,7 +10,7 @@ module branch_predictor(clk, reset_n, PC, is_flush, is_BJ_type, actual_next_PC, 
 	input [`WORD_SIZE-1:0] actual_next_PC; //computed actual next PC from branch resolve stage
 	input [`WORD_SIZE-1:0] actual_PC; // PC from branch resolve stage
 
-	output [`WORD_SIZE-1:0] next_PC;
+	output reg [`WORD_SIZE-1:0] next_PC;
 
 
 	//TODO: implement branch predictor

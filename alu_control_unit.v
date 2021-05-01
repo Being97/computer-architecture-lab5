@@ -16,7 +16,7 @@ module alu_control_unit(funct, opcode, ALUOp, clk, funcCode, branchType);
 
   always @(posedge clk) begin
     if (ALUOp == 1) begin
-      func_code = 4'b0000;
+      funcCode = 4'b0000;
       if (opcode == `ALU_OP) begin
         case(funct)
           `INST_FUNC_ADD: funcCode = 4'b0000;

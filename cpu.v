@@ -32,10 +32,48 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	wire [3:0] opcode;
 	wire [5:0] funct;
 
+	wire instr_read;
+	wire mem_read;
+	wire mem_write;
+
 	assign read_m1 = instr_read;
 	assign read_m2 = mem_read;
 	assign write_m2 = mem_write;
 
+	wire ex_func;
+	wire ex_opcode;
+	wire ex_alu_op;
+	wire ex_func_code;
+	wire ex_branch_type;
+
+	wire new_alu_src;
+	wire new_alu_op;
+	wire new_is_branch;
+	wire new_reg_write;
+	wire new_mem_read;
+	wire new_mem_write;
+
+	wire [`WORD_SIZE-1:0] read_out1;
+	wire [`WORD_SIZE-1:0] read_out2;
+	wire [`WORD_SIZE-1:0] ex_read_data_1;
+	wire [`WORD_SIZE-1:0] ex_read_data_2;
+	wire write_reg;
+	wire write_data;
+	wire reg_write;
+
+	wire ex_write_reg;
+	wire ex_reg_write;
+	wire mem_write_reg;
+	wire mem_reg_write;
+	wire wb_write_reg;
+	wire wb_reg_write;
+	reg is_stall;
+
+	wire ex_alu_src;
+	wire ex_is_branch;
+	wire ex_mem_read;
+	wire ex_mem_write;
+	wire ex_imm_extended;
 
 	alu_control_unit alu_control_unit(
 		.funct(ex_func),
@@ -43,7 +81,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.ALUOp(ex_alu_op),
 		.clk(clk),
 		.funcCode(ex_func_code),
-		.branchType(ex_branch_type);
+		.branchType(ex_branch_type)
+	);
 	alu alu(
 		.alu_input_A(alu_input_A),
 		.alu_input_B(alu_input_B),
@@ -51,18 +90,23 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.branch_type(branch_type),
 		.alu_out(alu_out),
 		.overflow_flag(overflow_flag),
-		.bcond(bcond));
+		.bcond(bcond)
+	);
 	control_unit control_unit (
 		.id_opcode(opcode),
-		.id_func_code(func_code),
+		.id_func_code(func),
 		.clk(clk),
 		.reset_n(reset_n),
 		.alu_src(new_alu_src),
 		.alu_op(new_alu_op),
 		.is_branch(new_is_branch),
 		.reg_write(new_reg_write),
-		.mem_read(new_mem_read),
-		.mem_write(new_mem_write),
+		.mem_read(new_mem_read),	`
+
+
+
+		
+		.mem_write(new_mem_write)
 	);
 	register_file register_file (
 		.read_out1(read_out1),
@@ -73,7 +117,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.write_data(write_data),
 		.reg_write(reg_write),
 		.clk(clk),
-		.reset_n(reset_n),
+		.reset_n(reset_n)
 	);
 
 	always @(*) begin
@@ -136,19 +180,31 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg [`WORD_SIZE-1:0] id_pc;
 	reg [`WORD_SIZE-1:0] id_instr;
 	reg [`WORD_SIZE-1:0] if_pc;
-	reg [`WORD_SIZE-1:0] if_instr;
-	reg [`WORD_SIZE-1:0] id_pc;	
-	reg [`WORD_SIZE-1:0] id_pc;	
-	reg [`WORD_SIZE-1:0] id_pc;	
-	reg [`WORD_SIZE-1:0] id_pc;	
-	reg [`WORD_SIZE-1:0] id_pc;	
-	reg [`WORD_SIZE-1:0] id_pc;	
-	reg [`WORD_SIZE-1:0] id_pc;
+	reg [`WORD_SIZE-1:0] if_instr;	
+	reg [`WORD_SIZE-1:0] ex_pc;	
+	reg [`WORD_SIZE-1:0] mem_is_branch;	
+	reg [`WORD_SIZE-1:0] mem_mem_read;	
+	reg [`WORD_SIZE-1:0] mem_mem_write;	
+	reg [`WORD_SIZE-1:0] mem_pc;	
+	reg [`WORD_SIZE-1:0] pc_calced;
+	reg [`WORD_SIZE-1:0] mem_pc_calced;
+	reg [`WORD_SIZE-1:0] ex_pc_calced;
+	reg [`WORD_SIZE-1:0] mem_mem_to_reg;
+	reg [`WORD_SIZE-1:0] ex_mem_to_reg;
+	reg [`WORD_SIZE-1:0] pc;
+
+	wire mem_bcond;
+
+	reg [`WORD_SIZE-1:0] mem_alu_result;
+	reg [`WORD_SIZE-1:0] alu_result;
+	reg [`WORD_SIZE-1:0] mem_write_data;
+	reg [`WORD_SIZE-1:0] wb_read_data;
+	reg [`WORD_SIZE-1:0] wb_mem_to_reg;
+	reg [`WORD_SIZE-1:0] wb_alu_result;
 
 	// instruction parsing
-	wire [3:0] opcode;
 	wire [1:0] rs, rt, rd;
-	wire [5:0] func_code;
+	wire [5:0] func;
 	wire [7:0] imm;
 	wire [7:0] imm_extended;	
 	wire [11:0] target_addr;
