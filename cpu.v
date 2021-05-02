@@ -1,5 +1,4 @@
 `timescale 1ns/1ns
-`define WORD_SIZE 16    // data and address word size
 
 `include "datapath.v"
 
@@ -21,92 +20,140 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	output [`WORD_SIZE-1:0] output_port;
 	output is_halted;
 
-	wire [`WORD_SIZE-1:0] alu_input_A;
-	wire [`WORD_SIZE-1:0] alu_input_B;
+	// data
+	reg [1:0] rs, rt, rd;
+	reg [5:0] func;
+	reg [7:0] imm;
+	reg [`WORD_SIZE-1:0] imm_extended;
+	reg [11:0] target_addr;
+	reg [`WORD_SIZE-1:0] alu_input_A;
+	reg [`WORD_SIZE-1:0] alu_input_B;
 	wire [`WORD_SIZE-1:0] alu_out;
-	wire [3:0] alu_func_code;
-	wire [1:0] branch_type;
+	reg [1:0] branch_type;
 	wire overflow_flag;
-	wire bcond;
-	wire ALUOp;
-	wire [3:0] opcode;
+	reg [3:0] opcode;
 	wire [5:0] funct;
+	reg [3:0] alu_func_code;
+	reg alu_op;
+	wire [`WORD_SIZE-1:0] read_out1;
+	wire [`WORD_SIZE-1:0] read_out2;
+	reg [`WORD_SIZE-1:0] write_data;
+	reg [1:0] write_reg;
+	wire [`WORD_SIZE-1:0] alu_result;
+	reg [`WORD_SIZE-1:0] pc_calced;
+	reg [`WORD_SIZE-1:0] pc;
 
-	wire instr_read;
-	wire mem_read;
-	wire mem_write;
+	// signals
+	reg is_stall;
+	reg instr_read;
+	reg mem_read;
+	reg mem_write;
+	reg reg_write;
+	reg pc_src;
+	wire bcond;
 
-	assign read_m1 = instr_read;
-	assign read_m2 = mem_read;
-	assign write_m2 = mem_write;
-
-	wire ex_func;
-	wire ex_opcode;
-	wire ex_alu_op;
-	wire ex_func_code;
-	wire ex_branch_type;
-
+	// not used signals
 	wire new_alu_src;
 	wire new_alu_op;
 	wire new_is_branch;
 	wire new_reg_write;
 	wire new_mem_read;
 	wire new_mem_write;
+	wire new_mem_to_reg;
 
-	wire [`WORD_SIZE-1:0] read_out1;
-	wire [`WORD_SIZE-1:0] read_out2;
-	wire [`WORD_SIZE-1:0] ex_read_data_1;
-	wire [`WORD_SIZE-1:0] ex_read_data_2;
-	wire write_reg;
-	wire write_data;
-	wire reg_write;
+	// ex signals
+	reg ex_alu_op;
+	reg ex_reg_write;
+	reg ex_alu_src;
+	reg ex_is_branch;
+	reg ex_mem_read;
+	reg ex_mem_write;
+	reg ex_mem_to_reg;
 
-	wire ex_write_reg;
-	wire ex_reg_write;
-	wire mem_write_reg;
-	wire mem_reg_write;
-	wire wb_write_reg;
-	wire wb_reg_write;
-	reg is_stall;
+	// ex data
+	reg [5:0] ex_func;
+	reg [3:0] ex_opcode;
+	wire [3:0] ex_alu_func_code;
+	wire [1:0] ex_branch_type;
+	reg [`WORD_SIZE-1:0] ex_imm_extended;
+	reg [1:0] ex_write_reg;
+	reg [`WORD_SIZE-1:0] ex_read_data_1;
+	reg [`WORD_SIZE-1:0] ex_read_data_2;
+	reg [`WORD_SIZE-1:0] ex_pc;
+	reg [`WORD_SIZE-1:0] ex_pc_calced;
 
-	wire ex_alu_src;
-	wire ex_is_branch;
-	wire ex_mem_read;
-	wire ex_mem_write;
-	wire ex_imm_extended;
+	// mem signals
+	reg mem_is_branch;
+	reg mem_mem_read;
+	reg mem_mem_write;
+	reg mem_reg_write;
+	reg mem_pc_src;
+	reg mem_bcond;
+
+	// mem data
+	reg [`WORD_SIZE-1:0] mem_pc;
+	reg [`WORD_SIZE-1:0] mem_pc_calced;
+	reg [`WORD_SIZE-1:0] mem_mem_to_reg;
+	reg [`WORD_SIZE-1:0] mem_alu_result;
+	reg [`WORD_SIZE-1:0] mem_write_data;
+	reg [1:0] mem_write_reg;
+
+	// wb signals
+	reg wb_reg_write;
+	reg wb_pc_src;
+
+	// wb data
+	reg [1:0] wb_write_reg;
+	reg [`WORD_SIZE-1:0] wb_mem_to_reg;
+	reg [`WORD_SIZE-1:0] wb_alu_result;
+	reg [`WORD_SIZE-1:0] wb_read_data;
+	reg [`WORD_SIZE-1:0] wb_pc;
+	reg [`WORD_SIZE-1:0] wb_pc_calced;
+
+	// id data
+	reg [`WORD_SIZE-1:0] id_pc;
+	reg [`WORD_SIZE-1:0] id_instr;
+
+	// if data
+	reg [`WORD_SIZE-1:0] if_pc;
+	wire [`WORD_SIZE-1:0] if_instr;
+
+	assign read_m1 = instr_read;
+	assign read_m2 = mem_read;
+	assign write_m2 = mem_write;
+    assign data2 = write_m2 ? mem_write_data : `WORD_SIZE'bz;
+	assign address1 = if_pc;
+	assign address2 = mem_alu_result;
+
 
 	alu_control_unit alu_control_unit(
 		.funct(ex_func),
 		.opcode(ex_opcode),
-		.ALUOp(ex_alu_op),
+		.ALUOp(new_alu_op),
 		.clk(clk),
-		.funcCode(ex_func_code),
+		.funcCode(ex_alu_func_code),
 		.branchType(ex_branch_type)
 	);
 	alu alu(
-		.alu_input_A(alu_input_A),
-		.alu_input_B(alu_input_B),
-		.alu_func_code(alu_func_code),
+		.A(alu_input_A),
+		.B(alu_input_B),
+		.func_code(ex_alu_func_code),
 		.branch_type(branch_type),
 		.alu_out(alu_out),
 		.overflow_flag(overflow_flag),
 		.bcond(bcond)
 	);
 	control_unit control_unit (
-		.id_opcode(opcode),
-		.id_func_code(func),
+		.opcode(opcode),
+		.func_code(func),
 		.clk(clk),
 		.reset_n(reset_n),
 		.alu_src(new_alu_src),
-		.alu_op(new_alu_op),
 		.is_branch(new_is_branch),
 		.reg_write(new_reg_write),
-		.mem_read(new_mem_read),	`
-
-
-
-		
-		.mem_write(new_mem_write)
+		.mem_read(new_mem_read),
+		.mem_write(new_mem_write),
+		.mem_to_reg(new_mem_to_reg)
 	);
 	register_file register_file (
 		.read_out1(read_out1),
@@ -143,71 +190,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			is_stall = 0;
 		end
 	end
-	
-	function use_rs1;
-	input opcode;
-	input func;
-	begin
-		if (opcode === `LHI_OP || opcode === `JMP_OP || opcode === `JAL_OP) begin
-			use_rs1 = 0;
-		end
-		else if (func === 27 || func == 29 || func === 30 || func === 31) begin
-			use_rs1 = 0;		
-		end
-		else begin
-			use_rs1 = 1;
-		end
-	end
 
-	function use_rs2;
-	input opcode;
-	input func;
-	begin
-		if (opcode === `BLZ_OP || opcode === `BGZ_OP || opcode === `JAL_OP) begin
-			use_rs2 = 0;
-		end
-		else if (func === 4 || func == 5 || func === 6 || func === 7) begin
-			use_rs2 = 0;
-		end
-		else if (func > 24) begin
-			use_rs2 = 0;
-		end
-		else begin
-			use_rs2 = 1;
-		end
-	end
-
-	reg [`WORD_SIZE-1:0] id_pc;
-	reg [`WORD_SIZE-1:0] id_instr;
-	reg [`WORD_SIZE-1:0] if_pc;
-	reg [`WORD_SIZE-1:0] if_instr;	
-	reg [`WORD_SIZE-1:0] ex_pc;	
-	reg [`WORD_SIZE-1:0] mem_is_branch;	
-	reg [`WORD_SIZE-1:0] mem_mem_read;	
-	reg [`WORD_SIZE-1:0] mem_mem_write;	
-	reg [`WORD_SIZE-1:0] mem_pc;	
-	reg [`WORD_SIZE-1:0] pc_calced;
-	reg [`WORD_SIZE-1:0] mem_pc_calced;
-	reg [`WORD_SIZE-1:0] ex_pc_calced;
-	reg [`WORD_SIZE-1:0] mem_mem_to_reg;
-	reg [`WORD_SIZE-1:0] ex_mem_to_reg;
-	reg [`WORD_SIZE-1:0] pc;
-
-	wire mem_bcond;
-
-	reg [`WORD_SIZE-1:0] mem_alu_result;
-	reg [`WORD_SIZE-1:0] alu_result;
-	reg [`WORD_SIZE-1:0] mem_write_data;
-	reg [`WORD_SIZE-1:0] wb_read_data;
-	reg [`WORD_SIZE-1:0] wb_mem_to_reg;
-	reg [`WORD_SIZE-1:0] wb_alu_result;
-
-	// instruction parsing
-	wire [1:0] rs, rt, rd;
-	wire [5:0] func;
-	wire [7:0] imm;
-	wire [7:0] imm_extended;	
-	wire [11:0] target_addr;
 
 	// IF/ID
 	always @(posedge clk) begin
@@ -239,21 +222,21 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			ex_alu_src <= new_alu_src;
 			ex_alu_op <= new_alu_op;
 			// passing control signals
-			ex_rd <= rd;
 			ex_reg_write <= new_reg_write;
 			ex_is_branch <= new_is_branch;
 			ex_mem_read <= new_mem_read;
 			ex_mem_write <= new_mem_write;
+			ex_mem_to_reg <= new_mem_to_reg;
 			// using data
 			ex_read_data_1 <= read_out1;
-			ex_read_data_2 <= read_out2
+			ex_read_data_2 <= read_out2;
 			ex_imm_extended <= imm_extended;
 			ex_func <= func;
 			ex_opcode <= opcode;
 			// passing data
 			ex_write_reg <= rd;
 			// using & passing data
-			ex_pc <= id_pc;			
+			ex_pc <= id_pc;
 		end
 		else begin
 			ex_reg_write <= 0;
@@ -288,8 +271,6 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	end
 	// MEM
 	always @(*) begin
-		data2 = mem_write_data;
-		address2 = mem_alu_result;
 		mem_read = mem_mem_read;
 		mem_write = mem_mem_write;
 		mem_pc_src = mem_is_branch && mem_bcond;
@@ -325,7 +306,6 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	// IF
 	always @(*) begin
 		if_pc = pc_src ? pc_calced : pc + 1;
-		address1 = if_pc;
 		instr_read = 1;
 	end
 	// IF/ID
@@ -336,6 +316,40 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		id_instr <= data1;
 	end
 
+	function use_rs1;
+		input opcode_temp1;
+		input func_temp1;
+		begin
+			if (opcode_temp1 === `LHI_OP || opcode_temp1 === `JMP_OP || opcode_temp1 === `JAL_OP) begin
+				use_rs1 = 0;
+			end
+			else if (func_temp1 === 27 || func_temp1 == 29 || func_temp1 === 30 || func_temp1 === 31) begin
+				use_rs1 = 0;
+			end
+			else begin
+				use_rs1 = 1;
+			end
+		end
+	endfunction
+
+	function use_rs2;
+		input [3:0] opcode_temp2;
+		input [5:0] func_temp2;
+		begin
+			if (opcode_temp2 === `BLZ_OP || opcode_temp2 === `BGZ_OP || opcode_temp2 === `JAL_OP) begin
+				use_rs2 = 0;
+			end
+			else if (func_temp2 === 4 || func_temp2 == 5 || func_temp2 === 6 || func_temp2 === 7) begin
+				use_rs2 = 0;
+			end
+			else if (func_temp2 > 24) begin
+				use_rs2 = 0;
+			end
+			else begin
+				use_rs2 = 1;
+			end
+		end
+	endfunction
 endmodule
 
 
