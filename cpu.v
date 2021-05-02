@@ -16,8 +16,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	input [`WORD_SIZE-1:0] data1;
 	inout [`WORD_SIZE-1:0] data2;
 
-	output [`WORD_SIZE-1:0] num_inst;
-	output [`WORD_SIZE-1:0] output_port;
+	output reg [`WORD_SIZE-1:0] num_inst;
+	output reg [`WORD_SIZE-1:0] output_port;
 	output is_halted;
 
 	// data
@@ -51,6 +51,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg reg_write;
 	reg pc_src;
 	wire bcond;
+	wire wwd;
 
 	// not used signals
 	wire new_alu_src;
@@ -60,6 +61,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	wire new_mem_read;
 	wire new_mem_write;
 	wire new_mem_to_reg;
+	wire new_wwd;
 
 	// ex signals
 	reg ex_alu_op;
@@ -69,6 +71,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg ex_mem_read;
 	reg ex_mem_write;
 	reg ex_mem_to_reg;
+	reg ex_wwd;
 
 	// ex data
 	reg [5:0] ex_func;
@@ -89,6 +92,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg mem_reg_write;
 	reg mem_pc_src;
 	reg mem_bcond;
+	reg mem_wwd;
 
 	// mem data
 	reg [`WORD_SIZE-1:0] mem_pc;
@@ -96,11 +100,13 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg [`WORD_SIZE-1:0] mem_mem_to_reg;
 	reg [`WORD_SIZE-1:0] mem_alu_result;
 	reg [`WORD_SIZE-1:0] mem_write_data;
+	reg [`WORD_SIZE-1:0] mem_read_data_1;
 	reg [1:0] mem_write_reg;
 
 	// wb signals
 	reg wb_reg_write;
 	reg wb_pc_src;
+	reg wb_wwd;
 
 	// wb data
 	reg [1:0] wb_write_reg;
@@ -109,6 +115,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg [`WORD_SIZE-1:0] wb_read_data;
 	reg [`WORD_SIZE-1:0] wb_pc;
 	reg [`WORD_SIZE-1:0] wb_pc_calced;
+	reg [`WORD_SIZE-1:0] wb_read_data_1;
 
 	// id data
 	reg [`WORD_SIZE-1:0] id_pc;
@@ -125,6 +132,18 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	assign address1 = if_pc;
 	assign address2 = mem_alu_result;
 
+
+	initial begin
+		if_pc = 0;
+	end
+
+	always @(posedge clk) begin
+		if (!reset_n) begin
+			num_inst <= -5;
+		end else begin
+			num_inst <= num_inst + 1;
+		end
+	end
 
 	alu_control_unit alu_control_unit(
 		.funct(ex_func),
@@ -153,7 +172,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.reg_write(new_reg_write),
 		.mem_read(new_mem_read),
 		.mem_write(new_mem_write),
-		.mem_to_reg(new_mem_to_reg)
+		.mem_to_reg(new_mem_to_reg),
+		.wwd(new_wwd)
 	);
 	register_file register_file (
 		.read_out1(read_out1),
@@ -166,6 +186,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.clk(clk),
 		.reset_n(reset_n)
 	);
+
 
 	always @(*) begin
 		if ((rs == ex_write_reg) && use_rs1(opcode, func) && ex_reg_write) begin
@@ -191,7 +212,16 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		end
 	end
 
-
+	// IF
+	always @(*) begin
+		if (!reset_n) begin
+			if_pc = 16'b0;
+		end
+		else begin
+			if_pc = pc_src ? pc_calced : pc + 1;
+		end
+		instr_read = 1;
+	end
 	// IF/ID
 	always @(posedge clk) begin
 		// passing data
@@ -227,6 +257,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			ex_mem_read <= new_mem_read;
 			ex_mem_write <= new_mem_write;
 			ex_mem_to_reg <= new_mem_to_reg;
+			ex_wwd <= new_wwd;
 			// using data
 			ex_read_data_1 <= read_out1;
 			ex_read_data_2 <= read_out2;
@@ -255,6 +286,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	always @(posedge clk) begin
 		// passing control signals
 		mem_reg_write <= ex_reg_write;
+		mem_wwd <= ex_wwd;
 		// using control signals
 		mem_is_branch <= ex_is_branch;
 		mem_mem_read <= ex_mem_read;
@@ -264,6 +296,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		mem_pc_calced <= ex_pc_calced;
 		mem_mem_to_reg <= ex_mem_to_reg;
 		mem_write_reg <= ex_write_reg;
+		mem_read_data_1 <= ex_read_data_1;
 		// using data
 		mem_bcond <= bcond;
 		mem_alu_result <= alu_result;
@@ -281,6 +314,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		wb_pc_src <= mem_pc_src; // 브랜치 프리딕션 구현 후 수정
 		// using control signals
 		wb_mem_to_reg <= mem_mem_to_reg;
+		wb_wwd <= mem_wwd;
 		// passing data
 		wb_pc <= mem_pc;
 		wb_pc_calced <= mem_pc_calced;
@@ -289,9 +323,13 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		wb_write_reg <= mem_write_reg;
 		wb_reg_write <= mem_reg_write;
 		wb_read_data <= data2;
+		wb_read_data_1 <= mem_read_data_1;
 	end
 	// WB
 	always @(*) begin
+		if(wb_wwd) begin
+			output_port = wb_read_data_1;
+		end
 		write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
 		write_reg = wb_write_reg;
 		reg_write = wb_reg_write;
@@ -302,11 +340,6 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		pc_calced <= wb_pc_calced;
 		pc <= wb_pc;
 		pc_src <= wb_pc_src;
-	end
-	// IF
-	always @(*) begin
-		if_pc = pc_src ? pc_calced : pc + 1;
-		instr_read = 1;
 	end
 	// IF/ID
 	always @(posedge clk) begin
