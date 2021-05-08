@@ -134,11 +134,17 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 
 
 	initial begin
-		if_pc = 0;
+		instr_read <= 0;
+		mem_alu_result <= 0;
+		mem_write <= 0;
 	end
 
 	always @(posedge clk) begin
 		if (!reset_n) begin
+			instr_read <= 1;
+			mem_write <= 0;
+			mem_read <= 0;
+			pc_src <= 0;
 			num_inst <= -5;
 		end else begin
 			num_inst <= num_inst + 1;
@@ -211,23 +217,40 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			is_stall = 0;
 		end
 	end
+	// WB/IF
+	always @(posedge clk) begin
+		if (!reset_n) begin
+			// if_pc <= 0;
+			// id_pc <= -1;
+			// pc <= -1;
+		end
+		else begin
+			// pc_calced <= wb_pc_calced;
+			// pc <= wb_pc;
+			// pc_src <= wb_pc_src;			
+		end
+		// $display("[WB] mem write at %d, value is %d", mem_alu_result, mem_write_data);
+	end
 
 	// IF
 	always @(*) begin
 		if (!reset_n) begin
-			if_pc = 16'b0;
+			if_pc <= 0;
 		end
 		else begin
-			if_pc = pc_src ? pc_calced : pc + 1;
+			if_pc = pc_src ? pc_calced : id_pc + 1;		
 		end
 		instr_read = 1;
+		$display("START instruction if_pc: %d, id_pc:%d", if_pc, id_pc);			
 	end
 	// IF/ID
 	always @(posedge clk) begin
 		// passing data
 		id_pc <= if_pc;
 		// using data
-		id_instr <= if_instr;
+		id_instr <= data1;
+		instr_read <= 0;
+		$display("[IF] new pc: %d, instruction: %b", if_pc, data1);
 	end
 	// ID
 	always @(*) begin
@@ -272,6 +295,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		else begin
 			ex_reg_write <= 0;
 		end
+		$display("[ID] opcode: %d, rs: %d, rt: %d, rd: %d", opcode, rs, rt, rd);
 	end
 	// EX
 	always @(*) begin
@@ -301,6 +325,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		mem_bcond <= bcond;
 		mem_alu_result <= alu_result;
 		mem_write_data <= ex_read_data_2;
+		$display("[EX] wwd: %d, read1: %d, read2: %d, alu_result: %d", ex_wwd, ex_read_data_1, ex_read_data_2, alu_result);
 	end
 	// MEM
 	always @(*) begin
@@ -310,6 +335,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	end
 	// MEM/WB
 	always @(posedge clk) begin
+		mem_read <= 0;
+		mem_write <= 0;
 		// passing control signals
 		wb_pc_src <= mem_pc_src; // 브랜치 프리딕션 구현 후 수정
 		// using control signals
@@ -324,30 +351,25 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		wb_reg_write <= mem_reg_write;
 		wb_read_data <= data2;
 		wb_read_data_1 <= mem_read_data_1;
+		if (mem_read) begin
+			$display("[MEM] mem read at %d, value is %d", mem_alu_result, data2);
+		end
+		else if (mem_write) begin
+			$display("[MEM] mem write at %d, value is %d", mem_alu_result, mem_write_data);
+		end
+
 	end
 	// WB
 	always @(*) begin
 		if(wb_wwd) begin
+			$display("WWD : %d", wb_read_data_1);
 			output_port = wb_read_data_1;
 		end
 		write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
 		write_reg = wb_write_reg;
 		reg_write = wb_reg_write;
 	end
-	// WB/IF
-	always @(posedge clk) begin
-		// using data
-		pc_calced <= wb_pc_calced;
-		pc <= wb_pc;
-		pc_src <= wb_pc_src;
-	end
-	// IF/ID
-	always @(posedge clk) begin
-		// passing data
-		id_pc <= if_pc;
-		// using data
-		id_instr <= data1;
-	end
+
 
 	function use_rs1;
 		input opcode_temp1;

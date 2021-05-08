@@ -239,5 +239,6 @@ module Memory(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address
 				if(read_m1)data1 <= (write_m2 & address1==address2)?data2:memory[address1];
 				if(read_m2)output_data2 <= memory[address2];
 				if(write_m2)memory[address2] <= data2;															  
+				$display("read: %d, write:%d, addr1:%d, addr2:%d, data1: %d",read_m1, write_m2, address1, address2, data1);
 			end
 endmodule
