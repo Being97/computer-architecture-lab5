@@ -235,13 +235,14 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	// IF
 	always @(*) begin
 		if (!reset_n) begin
-			if_pc <= 0;
+			if_pc = 0;
+			id_pc = -1;
 		end
 		else begin
 			if_pc = pc_src ? pc_calced : id_pc + 1;		
 		end
 		instr_read = 1;
-		$display("START instruction if_pc: %d, id_pc:%d", if_pc, id_pc);			
+		$display("======================= %d ========================", if_pc);			
 	end
 	// IF/ID
 	always @(posedge clk) begin
@@ -249,8 +250,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		id_pc <= if_pc;
 		// using data
 		id_instr <= data1;
+		$display("%d [IF] instruction: %b", if_pc, data1);
 		instr_read <= 0;
-		$display("[IF] new pc: %d, instruction: %b", if_pc, data1);
 	end
 	// ID
 	always @(*) begin
@@ -295,7 +296,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		else begin
 			ex_reg_write <= 0;
 		end
-		$display("[ID] opcode: %d, rs: %d, rt: %d, rd: %d", opcode, rs, rt, rd);
+		$display("%d [ID] opcode: %d, rs: %d, rt: %d, rd: %d", id_pc, opcode, rs, rt, rd);
 	end
 	// EX
 	always @(*) begin
@@ -325,7 +326,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		mem_bcond <= bcond;
 		mem_alu_result <= alu_result;
 		mem_write_data <= ex_read_data_2;
-		$display("[EX] wwd: %d, read1: %d, read2: %d, alu_result: %d", ex_wwd, ex_read_data_1, ex_read_data_2, alu_result);
+		$display("%d [EX] wwd: %d, read1: %d, read2: %d, alu_result: %d",ex_pc, ex_wwd, ex_read_data_1, ex_read_data_2, alu_result);
 	end
 	// MEM
 	always @(*) begin
@@ -352,17 +353,20 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		wb_read_data <= data2;
 		wb_read_data_1 <= mem_read_data_1;
 		if (mem_read) begin
-			$display("[MEM] mem read at %d, value is %d", mem_alu_result, data2);
+			$display("%d [MEM] mem read at %d, value is %d", mem_pc, mem_alu_result, data2);
 		end
 		else if (mem_write) begin
-			$display("[MEM] mem write at %d, value is %d", mem_alu_result, mem_write_data);
+			$display("%d [MEM] mem write at %d, value is %d", mem_pc, mem_alu_result, mem_write_data);
+		end
+		else begin
+			$display("%d [MEM] pass", mem_pc);
 		end
 
 	end
 	// WB
 	always @(*) begin
 		if(wb_wwd) begin
-			$display("WWD : %d", wb_read_data_1);
+			$display(">>>>> WWD : %d", wb_read_data_1);
 			output_port = wb_read_data_1;
 		end
 		write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
