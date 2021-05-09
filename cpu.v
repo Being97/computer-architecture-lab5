@@ -138,6 +138,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		instr_read <= 0;
 		mem_alu_result <= 0;
 		mem_write <= 0;
+		num_inst <= -4;
 	end
 
 	always @(posedge clk) begin
@@ -146,12 +147,11 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			mem_write <= 0;
 			mem_read <= 0;
 			pc_src <= 0;
-			num_inst <= -5;
+			num_inst <= -4;
 			is_flush <= 0;
 			opcode <= 0;
 			func <= 0;
-		end else begin
-			num_inst <= num_inst + 1;
+			is_stall <= 0;
 		end
 	end
 
@@ -207,49 +207,37 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			next_pc <= read_out1;
 			is_flush <= 1;
 		end
+		else if (opcode == `BNE_OP || opcode == `BEQ_OP || opcode == `BGZ_OP || opcode == `BLZ_OP) begin
+			next_pc <= imm_extended + id_pc;
+			is_flush <= 1;
+		end
 		else begin
 			is_flush <= 0;		
 		end
-		// if (opcode === `BNE_OP || opcode === `BEQ_OP || BGZ_OP BLZ_OP)
 	end
 
-
 	always @(negedge clk) begin
-		if ((rs == ex_write_reg) && use_rs1(opcode, func) && ex_reg_write) begin
+		if ((rs == ex_write_reg) && use_rs1(opcode, func) && (ex_reg_write || ex_wwd)) begin
 			is_stall <= 1;
 		end
-		else if ((rs == mem_write_reg) && use_rs1(opcode, func) && mem_reg_write) begin
+		else if ((rs == mem_write_reg) && use_rs1(opcode, func) && (mem_reg_write || mem_wwd)) begin
 			is_stall <= 1;
 		end
-		else if ((rs == wb_write_reg) && use_rs1(opcode, func) && wb_reg_write) begin
+		else if ((rs == wb_write_reg) && use_rs1(opcode, func) && (wb_reg_write || wb_wwd)) begin
 			is_stall <= 1;
 		end
-		else if ((rt == ex_write_reg) && use_rs2(opcode, func) && ex_reg_write) begin
+		else if ((rt == ex_write_reg) && use_rs2(opcode, func) && (ex_reg_write || ex_wwd)) begin
 			is_stall <= 1;
 		end
-		else if ((rt == mem_write_reg) && use_rs2(opcode, func) && mem_reg_write) begin
+		else if ((rt == mem_write_reg) && use_rs2(opcode, func) && (mem_reg_write || mem_wwd)) begin
 			is_stall <= 1;
 		end
-		else if ((rt == wb_write_reg) && use_rs2(opcode, func) && wb_reg_write) begin
+		else if ((rt == wb_write_reg) && use_rs2(opcode, func) && (wb_reg_write|| wb_wwd)) begin
 			is_stall <= 1;
 		end
 		else begin
 			is_stall <= 0;
 		end
-	end
-	// WB/IF
-	always @(posedge clk) begin
-		if (!reset_n) begin
-			// if_pc <= 0;
-			// id_pc <= -1;
-			// pc <= -1;
-		end
-		else begin
-			// pc_calced <= wb_pc_calced;
-			// pc <= wb_pc;
-			// pc_src <= wb_pc_src;			
-		end
-		// $display("[WB] mem write at %d, value is %d", mem_alu_result, mem_write_data);
 	end
 
 	// IF
@@ -257,26 +245,33 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		if (!reset_n) begin
 			if_pc = 0;
 			id_pc = -1;
+			instr_read = 1;
+			$display("======================= %d ========================", if_pc);
 		end
 		else if (is_flush) begin
 			if_pc = next_pc;
 			$display(">>>>>>> next_pc = %d", next_pc);
 			is_flush = 0;
+			instr_read = 1;
+			$display("======================= %d ========================", if_pc);			
 		end
 		else begin
 			if_pc = id_pc + 1;		
+			instr_read = 1;
+			$display("======================= %d ========================", if_pc);			
 		end
-		instr_read = 1;
-		$display("======================= %d ========================", if_pc);			
 	end
 	// IF/ID
 	always @(posedge clk) begin
-		// passing data
-		id_pc <= if_pc;			
-		// using data
-		id_instr <= data1;
-		$display("%d [IF] instruction: %b", if_pc, data1);
-		instr_read <= 0;			
+		if (!is_stall) begin
+			// passing data
+			id_pc <= if_pc;			
+			// using data
+			id_instr <= data1;
+			num_inst <= num_inst + 1;
+			$display("%d [IF] instruction: %b, num_inst: %d", if_pc, data1, num_inst);
+			instr_read <= 0;			
+		end
 	end
 	// ID
 	always @(*) begin
@@ -296,17 +291,16 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	end
 	// ID/EX
 	always @(posedge clk) begin
-		// if (!is_stall) begin
 			// using control signals
 			ex_alu_src <= new_alu_src;
 			ex_alu_op <= new_alu_op;
 			// passing control signals
-			ex_reg_write <= new_reg_write;
+			ex_reg_write <= is_stall ? 0 : new_reg_write;
 			ex_is_branch <= new_is_branch;
 			ex_mem_read <= new_mem_read;
-			ex_mem_write <= new_mem_write;
+			ex_mem_write <= is_stall ? 0 : new_mem_write;
 			ex_mem_to_reg <= new_mem_to_reg;
-			ex_wwd <= new_wwd;
+			ex_wwd <= is_stall ? 0 : new_wwd;
 			// using data
 			ex_read_data_1 <= read_out1;
 			ex_read_data_2 <= read_out2;
@@ -397,7 +391,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
 			write_reg = wb_write_reg;
 			reg_write = wb_reg_write;
-			$display("%d [WB] reg_write: %d, write %d at reg %d",wb_pc, reg_write, write_data, write_reg);		
+			$display("%d [WB] reg_write: %d,  write %d at reg %d",wb_pc, reg_write, write_data, write_reg);		
 		end
 	end
 
@@ -406,10 +400,10 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		input opcode_temp1;
 		input func_temp1;
 		begin
-			if (opcode_temp1 === `LHI_OP || opcode_temp1 === `JMP_OP || opcode_temp1 === `JAL_OP) begin
+			if (opcode_temp1 == `LHI_OP || opcode_temp1 == `JMP_OP || opcode_temp1 == `JAL_OP) begin
 				use_rs1 = 0;
 			end
-			else if (func_temp1 === 27 || func_temp1 == 29 || func_temp1 === 30 || func_temp1 === 31) begin
+			else if (func_temp1 == 27 || func_temp1 == 29 || func_temp1 == 30 || func_temp1 == 31) begin
 				use_rs1 = 0;
 			end
 			else begin
@@ -422,10 +416,10 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		input [3:0] opcode_temp2;
 		input [5:0] func_temp2;
 		begin
-			if (opcode_temp2 === `BLZ_OP || opcode_temp2 === `BGZ_OP || opcode_temp2 === `JAL_OP) begin
+			if (opcode_temp2 == `BLZ_OP || opcode_temp2 == `BGZ_OP || opcode_temp2 == `JAL_OP) begin
 				use_rs2 = 0;
 			end
-			else if (func_temp2 === 4 || func_temp2 == 5 || func_temp2 === 6 || func_temp2 === 7) begin
+			else if (func_temp2 == 4 || func_temp2 == 5 || func_temp2 == 6 || func_temp2 == 7) begin
 				use_rs2 = 0;
 			end
 			else if (func_temp2 > 24) begin
