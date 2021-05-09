@@ -28,7 +28,6 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg [11:0] target_addr;
 	reg [`WORD_SIZE-1:0] alu_input_A;
 	reg [`WORD_SIZE-1:0] alu_input_B;
-	wire [`WORD_SIZE-1:0] alu_out;
 	reg [1:0] branch_type;
 	wire overflow_flag;
 	reg [3:0] opcode;
@@ -42,9 +41,11 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	wire [`WORD_SIZE-1:0] alu_result;
 	reg [`WORD_SIZE-1:0] pc_calced;
 	reg [`WORD_SIZE-1:0] pc;
+	reg [`WORD_SIZE-1:0] next_pc;
 
 	// signals
 	reg is_stall;
+	reg is_flush;
 	reg instr_read;
 	reg mem_read;
 	reg mem_write;
@@ -146,6 +147,9 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			mem_read <= 0;
 			pc_src <= 0;
 			num_inst <= -5;
+			is_flush <= 0;
+			opcode <= 0;
+			func <= 0;
 		end else begin
 			num_inst <= num_inst + 1;
 		end
@@ -164,7 +168,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.B(alu_input_B),
 		.func_code(ex_alu_func_code),
 		.branch_type(branch_type),
-		.alu_out(alu_out),
+		.alu_out(alu_result),
 		.overflow_flag(overflow_flag),
 		.bcond(bcond)
 	);
@@ -193,28 +197,44 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.reset_n(reset_n)
 	);
 
-
-	always @(*) begin
-		if ((rs == ex_write_reg) && use_rs1(opcode, func) && ex_reg_write) begin
-			is_stall = 1;
+	// pc harzard
+	always @(negedge clk) begin
+		if (opcode == `JMP_OP || opcode == `JAL_OP) begin
+			next_pc <= target_addr;
+			is_flush <= 1;
 		end
-		else if ((rs == mem_write_reg) && use_rs1(opcode, func) && mem_reg_write) begin
-			is_stall = 1;
-		end
-		else if ((rs == wb_write_reg) && use_rs1(opcode, func) && wb_reg_write) begin
-			is_stall = 1;
-		end
-		else if ((rt == ex_write_reg) && use_rs2(opcode, func) && ex_reg_write) begin
-			is_stall = 1;
-		end
-		else if ((rt == mem_write_reg) && use_rs2(opcode, func) && mem_reg_write) begin
-			is_stall = 1;
-		end
-		else if ((rt == wb_write_reg) && use_rs2(opcode, func) && wb_reg_write) begin
-			is_stall = 1;
+		else if (func == 5'd25 || func == 5'd26) begin
+			next_pc <= read_out1;
+			is_flush <= 1;
 		end
 		else begin
-			is_stall = 0;
+			is_flush <= 0;		
+		end
+		// if (opcode === `BNE_OP || opcode === `BEQ_OP || BGZ_OP BLZ_OP)
+	end
+
+
+	always @(negedge clk) begin
+		if ((rs == ex_write_reg) && use_rs1(opcode, func) && ex_reg_write) begin
+			is_stall <= 1;
+		end
+		else if ((rs == mem_write_reg) && use_rs1(opcode, func) && mem_reg_write) begin
+			is_stall <= 1;
+		end
+		else if ((rs == wb_write_reg) && use_rs1(opcode, func) && wb_reg_write) begin
+			is_stall <= 1;
+		end
+		else if ((rt == ex_write_reg) && use_rs2(opcode, func) && ex_reg_write) begin
+			is_stall <= 1;
+		end
+		else if ((rt == mem_write_reg) && use_rs2(opcode, func) && mem_reg_write) begin
+			is_stall <= 1;
+		end
+		else if ((rt == wb_write_reg) && use_rs2(opcode, func) && wb_reg_write) begin
+			is_stall <= 1;
+		end
+		else begin
+			is_stall <= 0;
 		end
 	end
 	// WB/IF
@@ -238,8 +258,13 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			if_pc = 0;
 			id_pc = -1;
 		end
+		else if (is_flush) begin
+			if_pc = next_pc;
+			$display(">>>>>>> next_pc = %d", next_pc);
+			is_flush = 0;
+		end
 		else begin
-			if_pc = pc_src ? pc_calced : id_pc + 1;		
+			if_pc = id_pc + 1;		
 		end
 		instr_read = 1;
 		$display("======================= %d ========================", if_pc);			
@@ -247,11 +272,11 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	// IF/ID
 	always @(posedge clk) begin
 		// passing data
-		id_pc <= if_pc;
+		id_pc <= if_pc;			
 		// using data
 		id_instr <= data1;
 		$display("%d [IF] instruction: %b", if_pc, data1);
-		instr_read <= 0;
+		instr_read <= 0;			
 	end
 	// ID
 	always @(*) begin
@@ -271,7 +296,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	end
 	// ID/EX
 	always @(posedge clk) begin
-		if (!is_stall) begin
+		// if (!is_stall) begin
 			// using control signals
 			ex_alu_src <= new_alu_src;
 			ex_alu_op <= new_alu_op;
@@ -292,11 +317,12 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			ex_write_reg <= rd;
 			// using & passing data
 			ex_pc <= id_pc;
-		end
-		else begin
-			ex_reg_write <= 0;
-		end
-		$display("%d [ID] opcode: %d, rs: %d, rt: %d, rd: %d", id_pc, opcode, rs, rt, rd);
+		// end
+		// else begin
+			// $display("%d [ID] stall", id_pc);
+			// ex_reg_write <= 0;
+		// end
+		$display("%d [ID] opcode: %d, rs: %d, rt: %d, rd: %d, target_addr: %d", id_pc, opcode, rs, rt, rd, target_addr);
 	end
 	// EX
 	always @(*) begin
@@ -336,8 +362,6 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	end
 	// MEM/WB
 	always @(posedge clk) begin
-		mem_read <= 0;
-		mem_write <= 0;
 		// passing control signals
 		wb_pc_src <= mem_pc_src; // 브랜치 프리딕션 구현 후 수정
 		// using control signals
@@ -369,9 +393,12 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			$display(">>>>> WWD : %d", wb_read_data_1);
 			output_port = wb_read_data_1;
 		end
-		write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
-		write_reg = wb_write_reg;
-		reg_write = wb_reg_write;
+		else begin
+			write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
+			write_reg = wb_write_reg;
+			reg_write = wb_reg_write;
+			$display("%d [WB] reg_write: %d, write %d at reg %d",wb_pc, reg_write, write_data, write_reg);		
+		end
 	end
 
 

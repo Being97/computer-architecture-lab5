@@ -42,6 +42,7 @@ module alu (A, B, func_code, branch_type, alu_out, overflow_flag, bcond);
 		4'b0110: alu_out = A << 1;
 		4'b0111: alu_out = $signed(A) >>> 1;
 		4'b1000: alu_out = A;
+		// 4'b1001: alu_out = B;
 	endcase
 
 	case(branch_type)
@@ -62,6 +63,7 @@ module alu (A, B, func_code, branch_type, alu_out, overflow_flag, bcond);
 		else bcond = 0;
 		end
 	endcase
+	$display("[ALU] func_code: %d, A: %d, B: %d, alu_out: %d", func_code, A, B, alu_out);
   end
 
 endmodule

@@ -21,6 +21,7 @@ module control_unit (
 	output reg alu_src, is_branch, reg_write, mem_read, mem_to_reg, mem_write;
 	//additional control signals. pc_to_reg: to support JAL, JRL. halt: to support HLT. wwd: to support WWD. new_inst: new instruction start
 	// output reg pc_to_reg, halt, wwd, new_inst;
+	
 	output reg wwd;
 	// output reg [1:0] reg_write, alu_src_A, alu_src_B;
     reg isStore = 0;
@@ -31,7 +32,7 @@ module control_unit (
     reg isBranch = 0;
 
 	//TODO : implement control unit
-	always @(posedge clk) begin
+	always @(*) begin
 		alu_src = 0;
 		is_branch = 0;
 		reg_write = 0;
