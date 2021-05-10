@@ -24,17 +24,21 @@ module register_file (read_out1, read_out2, read1, read2, dest, write_data, reg_
 	end
 
     // write_data
-    always @(*) begin
+    always @(negedge clk) begin
         if (reg_write) begin
             GPR[dest] = write_data;
             // $display("REGISTER // WRITE_REG GPR[%d] = %d", dest, write_data);
         end
     end
-    always @(*) begin
+	/*
+    always @(posedge clk) begin
 		// $display("REGISTER // rs = %d, rd = %d", read1, read2);
 		// $display("         // GPR0 = %d, 1 = %d, 2 = %d, 3 = %d", GPR[0], GPR[1], GPR[2], GPR[3]);
 		read_out1 = GPR[read1];
 		read_out2 = GPR[read2];
 		// $display("         // read_out1 = %d, read_out2 = %d", read_out1, read_out2);
     end
+	*/
+	assign read_out1 = GPR[read1];
+    assign read_out2 = GPR[read2];
 endmodule

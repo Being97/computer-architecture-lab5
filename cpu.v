@@ -232,6 +232,8 @@ module mux4_1 (sel, i1, i2, i3, i4, o);
 endmodule
 
 reg [1:0] forwardA, forwardB;
+reg [1:0] mem_forwardA,mem_forwardB;
+reg [1:0] wb_forwardA,wb_forwardB;
 wire [`WORD_SIZE-1:0] forward_alu_input_A;
 wire [`WORD_SIZE-1:0] forward_alu_input_B;
 
@@ -259,10 +261,10 @@ mux4_1 mux4_1_B(
 );//rt
 
 always @(*) begin
-   if(mem_reg_write && (ex_read_data_1 == mem_write_reg)) begin
+   if(mem_reg_write && (rs == mem_write_reg)) begin
       forwardA = 2'b10;
    end
-   else if (wb_reg_write && (ex_read_data_1 == wb_write_reg)) begin
+   else if (wb_reg_write && (rs == wb_write_reg)) begin
       forwardA = 2'b01;
    end
    else begin
@@ -270,11 +272,12 @@ always @(*) begin
    end
 end
 
-always @(posedge clk) begin
-   if(mem_reg_write && (ex_read_data_2 == mem_write_reg)) begin
+always @(*) begin
+	//$display("mem_reg_write: %d, rs: %d, rt: %d, mem_write_reg : %d, wb_write_reg: %d\n", mem_reg_write, rs, rt, mem_write_reg, wb_write_reg);
+   if(mem_reg_write && (rt == mem_write_reg)) begin
       forwardB = 2'b10;
    end
-   else if (wb_reg_write && (ex_read_data_2 == wb_write_reg)) begin
+   else if (wb_reg_write && (rt == wb_write_reg)) begin
       forwardB = 2'b01;
    end
    else begin
@@ -387,7 +390,7 @@ end
 			ex_func <= func;
 			ex_opcode <= opcode;
 			// passing data
-			ex_write_reg <= rd;
+			ex_write_reg <= (opcode == 4 || opcode == 5 || opcode == 6 || opcode == 7)? rt : rd;
 			// using & passing data
 			ex_pc <= id_pc;
 		// end
@@ -411,6 +414,8 @@ end
 		// passing control signals
 		mem_reg_write <= ex_reg_write;
 		mem_wwd <= ex_wwd;
+		mem_forwardA <= forwardA;
+		mem_forwardB <= forwardB;
 		// using control signals
 		mem_is_branch <= ex_is_branch;
 		mem_mem_read <= ex_mem_read;
@@ -437,6 +442,8 @@ end
 	always @(posedge clk) begin
 		// passing control signals
 		wb_pc_src <= mem_pc_src; // 브랜치 프리딕션 구현 후 수정
+		wb_forwardA <= mem_forwardA;
+		wb_forwardB <= mem_forwardB;
 		// using control signals
 		wb_mem_to_reg <= mem_mem_to_reg;
 		wb_wwd <= mem_wwd;
@@ -461,10 +468,12 @@ end
 
 	end
 	// WB
+
+
 	always @(*) begin
 		if(wb_wwd) begin
 			$display(">>>>> WWD : %d", wb_read_data_1);
-			output_port = wb_read_data_1;
+			output_port = (forwardA == 0) ? wb_read_data_1 : wb_alu_result;
 		end
 		else begin
 			write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
