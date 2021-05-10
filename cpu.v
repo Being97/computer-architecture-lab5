@@ -398,8 +398,10 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	// EX
 	always @(*) begin
 		ex_pc_calced = (ex_imm_extended << 1) + ex_pc;
-		alu_input_A = forward_alu_input_A;
-		alu_input_B = ex_alu_src ? ex_imm_extended : forward_alu_input_B;
+		alu_input_A = ex_read_data_1;
+		alu_input_B = ex_alu_src ? ex_imm_extended : ex_read_data_2;
+		// alu_input_A = forward_alu_input_A;
+		// alu_input_B = ex_alu_src ? ex_imm_extended : forward_alu_input_B;
 		alu_op = ex_alu_op;
 		alu_func_code = ex_alu_func_code;
 		branch_type = ex_branch_type;
@@ -409,8 +411,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		// passing control signals
 		mem_reg_write <= ex_reg_write;
 		mem_wwd <= ex_wwd;
-		mem_forwardA <= forwardA;
-		mem_forwardB <= forwardB;
+		// mem_forwardA <= forwardA;
+		// mem_forwardB <= forwardB;
 		// using control signals
 		mem_is_branch <= ex_is_branch;
 		mem_mem_read <= ex_mem_read;
@@ -437,8 +439,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	always @(posedge clk) begin
 		// passing control signals
 		wb_pc_src <= mem_pc_src; // 브랜치 프리딕션 구현 후 수정
-		wb_forwardA <= mem_forwardA;
-		wb_forwardB <= mem_forwardB;
+		// wb_forwardA <= mem_forwardA;
+		// wb_forwardB <= mem_forwardB;
 		// using control signals
 		wb_mem_to_reg <= mem_mem_to_reg;
 		wb_wwd <= mem_wwd;
@@ -460,15 +462,18 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		else begin
 			$display("%d [MEM] pass", mem_pc);
 		end
-
+		if (mem_wwd) begin
+			output_port <= mem_read_data_1;
+			$display(">>>>> WWD : %d", mem_read_data_1);
+		end
 	end
+
 	// WB
-
-
 	always @(*) begin
 		if(wb_wwd) begin
-			$display(">>>>> WWD : %d", wb_read_data_1);
-			output_port = (forwardA == 0) ? wb_read_data_1 : wb_alu_result;
+			// output_port = wb_read_data_1;
+			// $display(">>>>> WWD : %d", wb_read_data_1);
+			// output_port = (forwardA == 0) ? wb_read_data_1 : wb_alu_result;
 		end
 		else begin
 			write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
