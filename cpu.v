@@ -216,6 +216,83 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		end
 	end
 
+
+// //forwarding unit
+// module mux4_1 (sel, i1, i2, i3, i4, o);
+//    input [1:0] sel;
+//    input [15:0] i1, i2, i3, i4;
+//    output reg [15:0] o;
+
+//    always @ (*) begin
+//       case (sel)
+//          0: o = i1;
+//          1: o = i2;
+//          2: o = i3;
+//          3: o = i4;
+//       endcase
+//    end
+
+// endmodule
+
+// reg [1:0] forwardA, forwardB;
+// reg [1:0] mem_forwardA,mem_forwardB;
+// reg [1:0] wb_forwardA,wb_forwardB;
+// wire [`WORD_SIZE-1:0] forward_alu_input_A;
+// wire [`WORD_SIZE-1:0] forward_alu_input_B;
+
+// initial begin
+// 	forwardA = 0;
+// 	forwardB = 0;
+// end
+
+// mux4_1 mux4_1_A(
+//    .sel(forwardA),
+//    .i1(ex_read_data_1),
+//    .i2(write_data),
+//    .i3(mem_alu_result),
+//    .i4(0),
+//    .o(forward_alu_input_A)
+// );//rs
+
+// mux4_1 mux4_1_B(
+//    .sel(forwardB),
+//    .i1(ex_read_data_2),
+//    .i2(write_data),
+//    .i3(mem_alu_result),
+//    .i4(0),
+//    .o(forward_alu_input_B)
+// );//rt
+
+// always @(*) begin
+//    if(mem_reg_write && (rs == mem_write_reg)) begin
+//       forwardA = 2'b10;
+//    end
+//    else if (wb_reg_write && (rs == wb_write_reg)) begin
+//       forwardA = 2'b01;
+//    end
+//    else begin
+//       forwardA = 2'b00;
+//    end
+// end
+
+// always @(*) begin
+// 	//$display("mem_reg_write: %d, rs: %d, rt: %d, mem_write_reg : %d, wb_write_reg: %d\n", mem_reg_write, rs, rt, mem_write_reg, wb_write_reg);
+//    if(mem_reg_write && (rt == mem_write_reg)) begin
+//       forwardB = 2'b10;
+//    end
+//    else if (wb_reg_write && (rt == wb_write_reg)) begin
+//       forwardB = 2'b01;
+//    end
+//    else begin
+//       forwardB = 2'b00;
+//    end
+// end
+
+// //00->register에서 읽어온 값 그대로,
+// //10->ALU의 결과를 forwarding
+// //01->MEM의 결과를 forwarding
+
+
 	always @(negedge clk) begin
 		if ((rs == ex_write_reg) && use_rs1(opcode, func) && (ex_reg_write || ex_wwd)) begin
 			is_stall <= 1;
@@ -308,7 +385,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			ex_func <= func;
 			ex_opcode <= opcode;
 			// passing data
-			ex_write_reg <= rd;
+			ex_write_reg <= (opcode == 4 || opcode == 5 || opcode == 6 || opcode == 7)? rt : rd;
 			// using & passing data
 			ex_pc <= id_pc;
 		// end
@@ -321,8 +398,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	// EX
 	always @(*) begin
 		ex_pc_calced = (ex_imm_extended << 1) + ex_pc;
-		alu_input_A = ex_read_data_1;
-		alu_input_B = ex_alu_src ? ex_imm_extended : ex_read_data_2;
+		alu_input_A = forward_alu_input_A;
+		alu_input_B = ex_alu_src ? ex_imm_extended : forward_alu_input_B;
 		alu_op = ex_alu_op;
 		alu_func_code = ex_alu_func_code;
 		branch_type = ex_branch_type;
@@ -332,6 +409,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		// passing control signals
 		mem_reg_write <= ex_reg_write;
 		mem_wwd <= ex_wwd;
+		mem_forwardA <= forwardA;
+		mem_forwardB <= forwardB;
 		// using control signals
 		mem_is_branch <= ex_is_branch;
 		mem_mem_read <= ex_mem_read;
@@ -358,6 +437,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	always @(posedge clk) begin
 		// passing control signals
 		wb_pc_src <= mem_pc_src; // 브랜치 프리딕션 구현 후 수정
+		wb_forwardA <= mem_forwardA;
+		wb_forwardB <= mem_forwardB;
 		// using control signals
 		wb_mem_to_reg <= mem_mem_to_reg;
 		wb_wwd <= mem_wwd;
@@ -382,10 +463,12 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 
 	end
 	// WB
+
+
 	always @(*) begin
 		if(wb_wwd) begin
 			$display(">>>>> WWD : %d", wb_read_data_1);
-			output_port = wb_read_data_1;
+			output_port = (forwardA == 0) ? wb_read_data_1 : wb_alu_result;
 		end
 		else begin
 			write_data = wb_mem_to_reg ? wb_read_data : wb_alu_result;
