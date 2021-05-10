@@ -317,6 +317,18 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		end
 	end
 
+	always @(negedge clk) begin
+		if (mem_wwd) begin
+			output_port <= mem_read_data_1;
+			$display(">>>>> WWD : %d", mem_read_data_1);
+		end
+		// if(wb_wwd) begin
+		// 	output_port = wb_read_data_1;
+		// 	$display(">>>>> WWD : %d", wb_read_data_1);
+		// 	// output_port = (forwardA == 0) ? wb_read_data_1 : wb_alu_result;
+		// end
+	end
+
 	// IF
 	always @(*) begin
 		if (!reset_n) begin
@@ -462,10 +474,10 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		else begin
 			$display("%d [MEM] pass", mem_pc);
 		end
-		if (mem_wwd) begin
-			output_port <= mem_read_data_1;
-			$display(">>>>> WWD : %d", mem_read_data_1);
-		end
+		// if (mem_wwd) begin
+		// 	output_port <= mem_read_data_1;
+		// 	$display(">>>>> WWD : %d", mem_read_data_1);
+		// end
 	end
 
 	// WB
