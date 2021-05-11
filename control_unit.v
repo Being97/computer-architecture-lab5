@@ -11,14 +11,15 @@ module control_unit (
 	mem_read,
 	mem_write,
 	mem_to_reg,
-	wwd);
+	wwd,
+	ALUOp);
 
 	input [3:0] opcode;
 	input [5:0] func_code;
 	input clk;
 	input reset_n;
 	
-	output reg alu_src, is_branch, reg_write, mem_read, mem_to_reg, mem_write;
+	output reg alu_src, is_branch, reg_write, mem_read, mem_to_reg, mem_write, ALUOp;
 	//additional control signals. pc_to_reg: to support JAL, JRL. halt: to support HLT. wwd: to support WWD. new_inst: new instruction start
 	// output reg pc_to_reg, halt, wwd, new_inst;
 	
@@ -40,6 +41,7 @@ module control_unit (
 		mem_write = 0;
 		mem_to_reg = 0;
 		wwd = 0;
+		ALUOp = 1;
 		isStore = (opcode == `SWD_OP);
 		isJtype = (opcode == `JMP_OP) || (opcode == `JAL_OP);
 		isRtype = opcode == `ALU_OP;
@@ -64,6 +66,7 @@ module control_unit (
 		end
 		if (opcode == `WWD_OP) begin
 			wwd = 1;
+			ALUOp = 0;
 		end
 		if(!isStore && !isBranch) begin
 			reg_write = 1;

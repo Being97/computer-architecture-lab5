@@ -183,7 +183,8 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.mem_read(new_mem_read),
 		.mem_write(new_mem_write),
 		.mem_to_reg(new_mem_to_reg),
-		.wwd(new_wwd)
+		.wwd(new_wwd),
+		.ALUOp(new_alu_op)
 	);
 	register_file register_file (
 		.read_out1(read_out1),
