@@ -16,7 +16,6 @@ module alu_control_unit(funct, opcode, ALUOp, clk, funcCode, branchType);
 
   always @(*) begin
     if (ALUOp == 1) begin
-      funcCode = 4'b0000;
       if (opcode == `ALU_OP) begin
         case(funct)
           `INST_FUNC_ADD: funcCode = 4'b0000;
@@ -29,9 +28,9 @@ module alu_control_unit(funct, opcode, ALUOp, clk, funcCode, branchType);
           `INST_FUNC_SHR: funcCode = 4'b0111;
           `INST_FUNC_JPR: funcCode = 4'b1000;
           `INST_FUNC_JRL: funcCode = 4'b1000;
-          //`INST_FUNC_WWD: 
+          `INST_FUNC_WWD: funcCode = 4'b1010;
           //`INST_FUNC_HLT: 
-      endcase
+        endcase
       end
       else if(opcode == `ADI_OP) begin funcCode = 4'b0000; end
       else if(opcode == `ORI_OP) begin funcCode = 4'b0011; end
@@ -39,7 +38,7 @@ module alu_control_unit(funct, opcode, ALUOp, clk, funcCode, branchType);
       else if(opcode == `LWD_OP) begin funcCode = 4'b0000; end
       else if(opcode == `SWD_OP) begin funcCode = 4'b0000; end
       else if(opcode == `JAL_OP) begin funcCode = 4'b1000; end
-
+      else begin funcCode = 4'b0000; end
     end
     else begin
       if(opcode == `BNE_OP) begin branchType = 2'b00; end

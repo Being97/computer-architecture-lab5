@@ -64,7 +64,7 @@ module control_unit (
 			alu_src = 1;
 			// $display("CONTROL_UNIT // alu_src");
 		end
-		if (opcode == `WWD_OP) begin
+		if (opcode == `WWD_OP && func_code == `INST_FUNC_WWD) begin
 			wwd = 1;
 			//ALUOp = 0;
 		end

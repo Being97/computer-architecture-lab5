@@ -53,6 +53,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg pc_src;
 	wire bcond;
 	wire wwd;
+	reg new_inst = 0;
 
 	// not used signals
 	wire new_alu_src;
@@ -103,6 +104,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg [`WORD_SIZE-1:0] mem_write_data;
 	reg [`WORD_SIZE-1:0] mem_read_data_1;
 	reg [1:0] mem_write_reg;
+	reg [3:0] mem_opcode;
 
 	// wb signals
 	reg wb_reg_write;
@@ -117,6 +119,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg [`WORD_SIZE-1:0] wb_pc;
 	reg [`WORD_SIZE-1:0] wb_pc_calced;
 	reg [`WORD_SIZE-1:0] wb_read_data_1;
+	reg [3:0] wb_opcode;
 
 	// id data
 	reg [`WORD_SIZE-1:0] id_pc;
@@ -138,16 +141,16 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		instr_read <= 0;
 		mem_alu_result <= 0;
 		mem_write <= 0;
-		num_inst <= -4;
+		num_inst <= -1;
 	end
 
 	always @(posedge clk) begin
 		if (!reset_n) begin
 			instr_read <= 1;
 			mem_write <= 0;
-			mem_read <= 0;
+			mem_read <= 0; 
 			pc_src <= 0;
-			num_inst <= -4;
+			num_inst <= -1;
 			is_flush <= 0;
 			opcode <= 0;
 			func <= 0;
@@ -318,7 +321,14 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		end
 	end
 
-	always @(negedge clk) begin
+	always @(*) begin
+		if (new_inst) begin
+			num_inst = num_inst + 1;
+			$display("num_inst: %d", num_inst +1);
+		end
+		new_inst = 0;
+	end
+	always @(posedge clk) begin
 		if (mem_wwd) begin
 			output_port <= mem_read_data_1;
 			$display(">>>>> WWD : %d", mem_read_data_1);
@@ -335,6 +345,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		if (!reset_n) begin
 			if_pc = 0;
 			id_pc = -1;
+			new_inst = 0;
 			instr_read = 1;
 			$display("======================= %d ========================", if_pc);
 		end
@@ -355,11 +366,10 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	always @(posedge clk) begin
 		if (!is_stall) begin
 			// passing data
-			id_pc <= if_pc;			
+			id_pc <= if_pc;
 			// using data
 			id_instr <= data1;
-			num_inst <= num_inst + 1;
-			$display("%d [IF] instruction: %b, num_inst: %d", if_pc, data1, num_inst);
+			$display("%d [IF] instruction: %b", if_pc, data1);
 			instr_read <= 0;			
 		end
 	end
@@ -483,6 +493,10 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 
 	// WB
 	always @(*) begin
+		// if (mem_wwd) begin
+			// output_port = mem_read_data_1;
+			// $display(">>>>> WWD : %d", mem_read_data_1);
+		// end
 		if(wb_wwd) begin
 			// output_port = wb_read_data_1;
 			// $display(">>>>> WWD : %d", wb_read_data_1);
@@ -493,6 +507,9 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			write_reg = wb_write_reg;
 			reg_write = wb_reg_write;
 			$display("%d [WB] reg_write: %d,  write %d at reg %d",wb_pc, reg_write, write_data, write_reg);		
+		end
+		if(wb_pc != mem_pc) begin
+			new_inst = 1;
 		end
 	end
 
