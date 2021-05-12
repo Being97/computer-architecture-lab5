@@ -41,7 +41,7 @@ module control_unit (
 		mem_write = 0;
 		mem_to_reg = 0;
 		wwd = 0;
-		ALUOp = 1;
+		ALUOp = 0;
 		isStore = (opcode == `SWD_OP);
 		isJtype = (opcode == `JMP_OP) || (opcode == `JAL_OP);
 		isRtype = opcode == `ALU_OP;
@@ -66,11 +66,14 @@ module control_unit (
 		end
 		if (opcode == `WWD_OP) begin
 			wwd = 1;
-			ALUOp = 0;
+			//ALUOp = 0;
 		end
 		if(!isStore && !isBranch) begin
 			reg_write = 1;
 			// $display("CONTROL_UNIT // reg_write");
+		end
+		if ((isRtype || (opcode == `ADI_OP) || (opcode == `ORI_OP) || (opcode == `LHI_OP)) && (wwd == 0)) begin
+			ALUOp = 1;			
 		end
 	end
 endmodule
