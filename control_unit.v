@@ -12,6 +12,7 @@ module control_unit (
 	mem_write,
 	mem_to_reg,
 	wwd,
+	halted,
 	ALUOp);
 
 	input [3:0] opcode;
@@ -19,7 +20,7 @@ module control_unit (
 	input clk;
 	input reset_n;
 	
-	output reg alu_src, is_branch, reg_write, mem_read, mem_to_reg, mem_write, ALUOp;
+	output reg alu_src, is_branch, reg_write, mem_read, mem_to_reg, mem_write, halted, ALUOp;
 	//additional control signals. pc_to_reg: to support JAL, JRL. halt: to support HLT. wwd: to support WWD. new_inst: new instruction start
 	// output reg pc_to_reg, halt, wwd, new_inst;
 	
@@ -41,6 +42,7 @@ module control_unit (
 		mem_write = 0;
 		mem_to_reg = 0;
 		wwd = 0;
+		halted = 0;
 		ALUOp = 0;
 		isStore = (opcode == `SWD_OP);
 		isJtype = (opcode == `JMP_OP) || (opcode == `JAL_OP);
@@ -68,11 +70,14 @@ module control_unit (
 			wwd = 1;
 			//ALUOp = 0;
 		end
+		if (opcode == `HLT_OP && func_code == `INST_FUNC_HLT) begin
+			halted = 1;
+		end
 		if(!isStore && !isBranch) begin
 			reg_write = 1;
 			// $display("CONTROL_UNIT // reg_write");
 		end
-		if ((isRtype || (opcode == `ADI_OP) || (opcode == `ORI_OP) || (opcode == `LHI_OP)) && (wwd == 0)) begin
+		if ((isRtype || (opcode == `ADI_OP) || (opcode == `ORI_OP)|| (opcode == `LWD_OP) || (opcode == `LHI_OP)) && (wwd == 0)) begin
 			ALUOp = 1;			
 		end
 	end

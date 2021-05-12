@@ -53,6 +53,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg pc_src;
 	wire bcond;
 	wire wwd;
+	reg halted;
 	reg new_inst = 0;
 
 	// not used signals
@@ -64,6 +65,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	wire new_mem_write;
 	wire new_mem_to_reg;
 	wire new_wwd;
+	wire new_halted;
 
 	// ex signals
 	reg ex_alu_op;
@@ -74,6 +76,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg ex_mem_write;
 	reg ex_mem_to_reg;
 	reg ex_wwd;
+	reg ex_halted;
 
 	// ex data
 	reg [5:0] ex_func;
@@ -95,6 +98,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg mem_pc_src;
 	reg mem_bcond;
 	reg mem_wwd;
+	reg mem_halted;
 
 	// mem data
 	reg [`WORD_SIZE-1:0] mem_pc;
@@ -110,6 +114,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 	reg wb_reg_write;
 	reg wb_pc_src;
 	reg wb_wwd;
+	reg wb_halted;
 
 	// wb data
 	reg [1:0] wb_write_reg;
@@ -135,7 +140,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
     assign data2 = write_m2 ? mem_write_data : `WORD_SIZE'bz;
 	assign address1 = if_pc;
 	assign address2 = mem_alu_result;
-
+	assign is_halted = halted;
 
 	initial begin
 		instr_read <= 0;
@@ -187,6 +192,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		.mem_write(new_mem_write),
 		.mem_to_reg(new_mem_to_reg),
 		.wwd(new_wwd),
+		.halted(new_halted),
 		.ALUOp(new_alu_op)
 	);
 	register_file register_file (
@@ -298,22 +304,22 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 
 
 	always @(negedge clk) begin
-		if ((rs == ex_write_reg) && use_rs1(opcode, func) && (ex_reg_write || ex_wwd)) begin
+		if ((rs == ex_write_reg) && use_rs1(opcode, func) && (ex_reg_write || ex_wwd || ex_halted)) begin
 			is_stall <= 1;
 		end
-		else if ((rs == mem_write_reg) && use_rs1(opcode, func) && (mem_reg_write || mem_wwd)) begin
+		else if ((rs == mem_write_reg) && use_rs1(opcode, func) && (mem_reg_write || mem_wwd || mem_halted)) begin
 			is_stall <= 1;
 		end
-		else if ((rs == wb_write_reg) && use_rs1(opcode, func) && (wb_reg_write || wb_wwd)) begin
+		else if ((rs == wb_write_reg) && use_rs1(opcode, func) && (wb_reg_write || wb_wwd || wb_halted)) begin
 			is_stall <= 1;
 		end
-		else if ((rt == ex_write_reg) && use_rs2(opcode, func) && (ex_reg_write || ex_wwd)) begin
+		else if ((rt == ex_write_reg) && use_rs2(opcode, func) && (ex_reg_write || ex_wwd || ex_halted)) begin
 			is_stall <= 1;
 		end
-		else if ((rt == mem_write_reg) && use_rs2(opcode, func) && (mem_reg_write || mem_wwd)) begin
+		else if ((rt == mem_write_reg) && use_rs2(opcode, func) && (mem_reg_write || mem_wwd || mem_halted)) begin
 			is_stall <= 1;
 		end
-		else if ((rt == wb_write_reg) && use_rs2(opcode, func) && (wb_reg_write|| wb_wwd)) begin
+		else if ((rt == wb_write_reg) && use_rs2(opcode, func) && (wb_reg_write|| wb_wwd || wb_halted)) begin
 			is_stall <= 1;
 		end
 		else begin
@@ -401,6 +407,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			ex_mem_write <= is_stall ? 0 : new_mem_write;
 			ex_mem_to_reg <= new_mem_to_reg;
 			ex_wwd <= is_stall ? 0 : new_wwd;
+			ex_halted <= is_stall ? 0 : new_halted;
 			// using data
 			ex_read_data_1 <= read_out1;
 			ex_read_data_2 <= read_out2;
@@ -434,6 +441,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		// passing control signals
 		mem_reg_write <= ex_reg_write;
 		mem_wwd <= ex_wwd;
+		mem_halted <= ex_halted;
 		// mem_forwardA <= forwardA;
 		// mem_forwardB <= forwardB;
 		// using control signals
@@ -467,6 +475,7 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 		// using control signals
 		wb_mem_to_reg <= mem_mem_to_reg;
 		wb_wwd <= mem_wwd;
+		wb_halted <= mem_halted;
 		// passing data
 		wb_pc <= mem_pc;
 		wb_pc_calced <= mem_pc_calced;
@@ -507,6 +516,9 @@ module cpu(clk, reset_n, read_m1, address1, data1, read_m2, write_m2, address2, 
 			write_reg = wb_write_reg;
 			reg_write = wb_reg_write;
 			$display("%d [WB] reg_write: %d,  write %d at reg %d",wb_pc, reg_write, write_data, write_reg);		
+		end
+		if (wb_halted) begin
+			halted = 1;
 		end
 		if(wb_pc != mem_pc) begin
 			new_inst = 1;
